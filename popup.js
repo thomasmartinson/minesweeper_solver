@@ -1,3 +1,4 @@
+
 // Initialize butotn with users's prefered color
 let changeColor = document.getElementById("changeColor");
 
@@ -11,7 +12,9 @@ changeColor.addEventListener("click", async () => {
 
   chrome.scripting.executeScript({
     target: { tabId: tab.id },
-    function: setPageBackgroundColor,
+    // see this: https://krasimirtsonev.com/blog/article/Chrome-Extension-run-JavaScript-in-the-context-of-the-current-page
+    // code: "alert('test')"
+    files: ['solve.js'],
   });
 });
 
