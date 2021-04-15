@@ -6,10 +6,8 @@ document.getElementsByTagName('head')[0].appendChild(script);
 // then this
 const mouse = { left: 0, right: undefined };
 
-cellClick(3, 3, mouse.left);
-
-const length = 8;
-const width = 8;
+let length = 8;
+let width = 8;
 
 let board = [];
 
@@ -29,19 +27,16 @@ function getValue(elem) {
 
 function loadBoard() {
     board = [];
-    for (let i = 0; i < length; i++) {
+    for (let i = 0; i < width; i++) {
         let row = [];
-        for (let j = 0; j < width; j++) {
-            let index = i * width + j;
+        for (let j = 0; j < length; j++) {
+            let index = j * width + i;
             row.push(squares[index]);
         }
-        console.log(row);
         board.push(row);
     }
     return board;
 }
-
-loadBoard();
 
 // returns a list of all adjacent square coordinates
 function getNeighbors(x, y) {
@@ -56,8 +51,8 @@ function getNeighbors(x, y) {
             if (x + i >= 0 && x + i < width && y + j >= 0 && y + j < length) {
                 neighbors.push(
                     {
-                        x: [x + i],
-                        y: [y + j]
+                        x: x + i,
+                        y: y + j,
                     }
                 );
             }
@@ -66,27 +61,78 @@ function getNeighbors(x, y) {
     return neighbors;
 }
 
+// isSolved
+function boardIsSolved() {
+    for (let col = 0; col < width; col++) {
+        for (let row = 0; row < length; row++) {
+            if (getValue(board[col][row] === 'o')) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 function solvePuzzle() {
-    for (let i = 0; i < width; i++) {
-        for (let j = 0; j < length; j++) {
-            const n = getValue(board[i][j]);
-            const neighbors = getNeighbors(i, j);
+    for (let col = 0; col < width; col++) {
+        for (let row = 0; row < length; row++) {
+            const n = getValue(board[col][row]);
+            if (n == 0 || n === 'x' || n === 'o') {
+                continue;
+            }
+
+            const neighbors = getNeighbors(col, row);
 
             // count flagged
             let flagged = 0;
-            for (coord of neighbors) {
+            for (let coord of neighbors) {
                 if (getValue(board[coord.x][coord.y]) === 'x') {
                     flagged++;
                 }
             }
 
-            // reveal all neighbors
-            if (flagged == n) {
-                for (coord of neighbors) {
-                    console.log(`clicking (${coord.x}, ${coord.y})`);
-                    cellClick(coord.x, coord.y, mouse.left)
+            // count blank
+            let blank = 0;
+            for (let coord of neighbors) {
+                if (getValue(board[coord.x][coord.y]) === 'o') {
+                    blank++;
                 }
             }
+
+            // flag all neighbors
+            if (blank + flagged == n && blank > 0) {
+                for (let coord of neighbors) {
+                    if (getValue(board[coord.x][coord.y]) === 'o') {
+                        cellClick(coord.x, coord.y, mouse.right);
+                    }
+                }
+            }
+
+            // reveal all neighbors
+            if (flagged == n) {
+                console.log(neighbors);
+                for (let coord of neighbors) {
+                    if (getValue(board[coord.x][coord.y]) === 'o') {
+                        try {
+                            cellClick(coord.x, coord.y, mouse.left);
+                        } catch (error) {
+                            console.log(`failed when clicking (${coord.x},${coord.y})`);
+                        }
+                    }
+                }
+            }
+
+            board = loadBoard();
         }
     }
+}
+
+cellClick(3, 3, mouse.left);
+
+board = loadBoard();
+
+let k = 0;
+while (k < 50) {
+    solvePuzzle();
+    k++;
 }
