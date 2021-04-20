@@ -1,19 +1,27 @@
 import time
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
 import pyautogui as _
+from webdriver_manager.driver import OperaDriver
 
+# reveals the cell located at x, y
+def reveal(x, y):
+  point = driver.find_element_by_id('{}_{}'.format(x+1,y+1)).location
+  _.click(point['x']+8, point['y']+8)
+  return True
 
-driver = webdriver.Chrome(ChromeDriverManager().install())
-driver.get('http://www.google.com/')
-time.sleep(5) # Let the user actually see something!
-search_box = driver.find_element_by_name('q')
-search_box.send_keys('ChromeDriver')
-search_box.submit()
-time.sleep(5) # Let the user actually see something!
-driver.quit()
+# flag the cell located at x, y
+def flag(x,y):
+  point = driver.find_element_by_id('{}_{}'.format(x+1,y+1)).location
+  _.rightClick(point['x']+8, point['y']+8)
+  return True
 
-print(_.size())
-# _.moveTo(500, 500, duration = .5)
-_.click(500, 500)
-_.click(500, 500)
+chrome_options = Options()
+chrome_options.add_experimental_option("excludeSwitches", ["enable-automation"])
+driver = webdriver.Chrome(executable_path=ChromeDriverManager().install(), options=chrome_options)
+driver.get('https://minesweeperonline.com/#200')
+driver.fullscreen_window()
+time.sleep(5)
+
+flag(1,1)
