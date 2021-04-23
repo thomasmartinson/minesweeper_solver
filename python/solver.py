@@ -26,6 +26,7 @@ class Cell:
     self.y = y
     self.value = value
     self.elem = elem
+    self.point = elem.location
     self.solved = solved
 
 if difficulty == 'beginner':
@@ -113,7 +114,7 @@ def read_pocket(this_cell):
   return
 
 def click_cell(cell: Cell):
-    point = cell.elem.location
+    point = cell.point
     pyautogui.click(point['x']+8, point['y']+8)
 
 # reveals the cell
