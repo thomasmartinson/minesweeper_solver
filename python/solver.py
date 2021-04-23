@@ -9,34 +9,39 @@ from webdriver_manager.driver import OperaDriver
 
 import cProfile
 
+difficulty = "expert"
+
 # initialize driver
 chrome_options = Options()
 chrome_options.add_experimental_option(
     "excludeSwitches", ["enable-automation"])
 driver = webdriver.Chrome(
     executable_path=ChromeDriverManager().install(), options=chrome_options)
-driver.get('https://minesweeperonline.com/#beginner-200')
+driver.get('https://minesweeperonline.com/#{}-200'.format(difficulty))
 driver.fullscreen_window()
 time.sleep(5)
 
-width = 9
-height = 9
-mines = 10
-flags_left = mines
-# TODO might be buggy
-board = [['o' for i in range(height)] for j in range(width)]
-is_cell_solved = [[False for i in range(height)] for j in range(width)]
-
-
-# returns the element at x, y
-def get_elem(x, y) -> WebElement:
-    return driver.find_element_by_id('{}_{}'.format(y+1, x+1))
-
 class Cell:
-  def __init__(self, x, y, elem):
+  def __init__(self, x, y, value, elem):
     self.x = x
     self.y = y
+    self.value = value
     self.elem = elem
+
+if difficulty == 'beginner':
+    width = 9
+    height = 9
+    mines = 10
+elif difficulty == 'intermediate':
+    width = 16
+    height = 16
+    mines = 40
+else: # expert
+    width = 30
+    height = 16
+    mines = 99 
+
+flags_left = mines
 
 #
 def get_value_of_elem(elem : WebElement):
@@ -48,42 +53,54 @@ def get_value_of_elem(elem : WebElement):
     else:
         return int(class_name[-1])
 
-# get the
-def get_value_of(x, y):
-    return get_value_of_elem(get_elem(x, y))
+def initialize_cells():
+    cells = []
+    for x in range(width):
+        column = []
+        for y in range(height):
+            elem = driver.find_element_by_id('{}_{}'.format(y+1, x+1))
+            value = get_value_of_elem(elem)
+            column.append(Cell(x, y, value, elem))
+        cells.append(column)
+    return cells
+
+cells = initialize_cells()
+is_cell_solved = [[False for i in range(height)] for j in range(width)]
     
 
-# reveals the cell located at x, y
-def reveal(x, y):
-    if get_value_of(x,y) == 'o':
-        point = get_elem(x,y).location
-        _.click(point['x']+8, point['y']+8, duration=0.25)
+# reveals the cell
+def reveal(cell : Cell):
+    if get_value_of_elem(cell.elem) == 'o':
+        point = cell.elem.location
+        _.click(point['x']+8, point['y']+8, duration=0.1)
         return 1
     return 0
 
 
-# flag the cell located at x, y
-def flag(x, y):
-    if get_value_of(x,y) == 'o':
-        point = get_elem(x,y).location
-        _.rightClick(point['x']+8, point['y']+8, duration=0.25)
+# flag the cell
+def flag(cell : Cell):
+    if get_value_of_elem(cell.elem) == 'o':
+        cell.value = 'x'
+        is_cell_solved[cell.x][cell.y] == True
+        point = cell.elem.location
+        _.rightClick(point['x']+8, point['y']+8, duration=0.1)
         return 1
     return 0
 
 
 # flag all of the cells in the given set
-def flag_all(cell_set):
+def flag_all(cell_set : Iterable[Cell]):
     total_clicks = 0
     for cell in cell_set:
-      total_clicks += flag(cell.x, cell.y)
+      total_clicks += flag(cell)
     return total_clicks
   
 
 # reveal all of the cells in the given set
-def reveal_all(cellSet):
+def reveal_all(cellSet : Iterable[Cell]):
     total_clicks = 0
     for cell in cellSet:
-      total_clicks += reveal(cell.x, cell.y)
+      total_clicks += reveal(cell)
     return total_clicks
   
 
@@ -100,7 +117,7 @@ def get_neighbors_of(x, y) -> Iterable[Cell]:
                 x + i < width and
                 y + j >= 0 and
                 y + j < height):
-                neighbors.add(Cell(x+i, y+j, get_elem(x+i, y+j)))
+                neighbors.add(cells[x+i][y+j])
         
     return neighbors
   
@@ -114,20 +131,16 @@ def to_1d(x, y):
 # returns True if no cells are blank, otherwise returns False
 # N.B.: this is a costly operation
 def load_board():
-    solved = True
-    flags = 0
-    for x in range(width):
-        for y in range(height):
-            new_value = get_value_of(x, y)
-            if new_value == 'o':
+    solved = False
+    for column in cells:
+        for cell in column:
+            value = get_value_of_elem(cell.elem)
+            cell.value = value
+            if value == 'o':
                 solved = False
-            elif new_value == 'x':
-                flags += 1
-    
-            board[x][y] = new_value
-    
+            elif value == 0:
+                is_cell_solved[cell.x][cell.y] = True
 
-    flags_left = mines - flags
     return solved
 
 
@@ -136,23 +149,23 @@ def get_neighbors_with_value(x, y, val) -> Iterable[Cell]:
     neighbors = get_neighbors_of(x, y)
     neighbors_with_val = set()
     for cell in neighbors:
-        if get_value_of(cell.x, cell.y) == val:
+        if cell.value == val:
             neighbors_with_val.add(cell)
     
     return neighbors_with_val
 
 
 # returns the number of adjacent mines that are still hidden
-def n_adj(x, y):
-    n = get_value_of(x, y)
-    flagged = len(get_neighbors_with_value(x, y, 'x'))
+def n_adj(cell : Cell):
+    n = cell.value
+    flagged = len(get_neighbors_with_value(cell.x, cell.y, 'x'))
     return n - flagged
 
 
 # solves the puzzle
 def solve():
-# reveal middle cell
-    reveal(math.floor(width / 2), math.floor(height / 2))
+    # reveal middle cell
+    reveal(cells[math.floor(width / 2)][math.floor(height / 2)])
     load_board()
 
     solved = False
@@ -171,7 +184,12 @@ def solve():
                 if is_cell_solved[x][y]:
                     continue
         
-                val = board[x][y]
+                val = cells[x][y].value
+
+                if flags_left == 0 and val == 'o':
+                    reveal(cells[x][y])
+                    is_cell_solved[x][y] = True
+
                 # skip if blank or flagged or empty
                 if val in [0, 'x', 'o']:
                     continue
@@ -187,21 +205,21 @@ def solve():
 
                 # flag all neighbors
                 if len(blank) + len(flagged) == n and len(blank) > 0:
-                    print('flagging all neighbors of ({}, {})'.format(x, y))
+                    # print('flagging all neighbors of ({}, {})'.format(x, y))
                     num_clicks += flag_all(blank)
                     is_cell_solved[x][y] = True
                     continue
 
                 # reveal all neighbors
                 if len(flagged) == n:
-                    print('revealing all neighbors of ({}, {})'.format(x, y))
+                    # print('revealing all neighbors of ({}, {})'.format(x, y))
                     num_clicks += reveal_all(blank)
                     is_cell_solved[x][y] = True
                     continue
 
                 for cell in neighbors:
                     #
-                    if get_value_of_elem(cell.elem) in ['x', 'o']:
+                    if cell.value in ['x', 'o']:
                         continue
 
                     # if all of a neighbor's blank neighbors are also neighbors of the current cell...
@@ -213,35 +231,39 @@ def solve():
 
                     if neighbors.issuperset(blankNeighborsOfNeighbor):
                         # if n_adj of the neighbor = n_adj of current cell...
-                        if n_adj(x, y) == n_adj(cell.x, cell.y):
+                        if n_adj(cells[x][y]) == n_adj(cell):
                             # reveal all other neighbors
-                            print('reveal all neighbors of ({}, {})'.format(x, y))
+                            # print('reveal all neighbors of ({}, {})'.format(x, y))
                             num_clicks += reveal_all(
                                 neighbors.difference(blankNeighborsOfNeighbor)
                             )
 
-                # for cell in neighbors:
-                #     greater_n = n_adj(x, y)
-                #     lesser_n = n_adj(cell.x, cell.y)
-                #     if greater_n > lesser_n:
-                #         # if difference of n_adj equals number of blank cells not shared
-                #         blankNeighbors = get_neighbors_with_value(x, y, 'o')
-                #         blankNeighborsOfNeighbor = get_neighbors_with_value(cell.x, cell.y, blank)
-                #         sharedBlankNeighbors = blankNeighbors.intersection(
-                #             blankNeighborsOfNeighbor
-                #         )
-                #         if greater_n - lesser_n == len(blankNeighbors) - len(sharedBlankNeighbors):
-                #             print("DOING THE THING")
+                for cell in neighbors:
+                    #
+                    if cell.value in ['x', 'o']:
+                        continue
 
-                #             # reveal all other neighbors of lesser
-                #             num_clicks += reveal_all(
-                #                 blankNeighborsOfNeighbor.difference(sharedBlankNeighbors)
-                #             )
+                    greater_n = n_adj(cells[x][y])
+                    lesser_n = n_adj(cell)
+                    if greater_n > lesser_n:
+                        # if difference of n_adj equals number of blank cells not shared
+                        blankNeighbors = get_neighbors_with_value(x, y, 'o')
+                        blankNeighborsOfNeighbor = get_neighbors_with_value(cell.x, cell.y, 'o')
+                        sharedBlankNeighbors = blankNeighbors.intersection(
+                            blankNeighborsOfNeighbor
+                        )
+                        if greater_n - lesser_n == len(blankNeighbors) - len(sharedBlankNeighbors):
+                            # print("DOING THE THING")
 
-                #             # flag all other neighbors of greater
-                #             num_clicks += flag_all(
-                #                 blankNeighbors.difference(sharedBlankNeighbors)
-                #             )
+                            # reveal all other neighbors of lesser
+                            num_clicks += reveal_all(
+                                blankNeighborsOfNeighbor.difference(sharedBlankNeighbors)
+                            )
+
+                            # flag all other neighbors of greater
+                            num_clicks += flag_all(
+                                blankNeighbors.difference(sharedBlankNeighbors)
+                            )
     
 
         # determine outcome and load board
