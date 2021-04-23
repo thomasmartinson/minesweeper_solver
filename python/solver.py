@@ -66,26 +66,27 @@ def initialize_cells():
 
 cells = initialize_cells()
 is_cell_solved = [[False for i in range(height)] for j in range(width)]
+is_cell_blank = [[True for i in range(height)] for j in range(width)]
     
 
 # reveals the cell
 def reveal(cell : Cell):
-    if get_value_of_elem(cell.elem) == 'o':
+    if is_cell_blank[cell.x][cell.y]:
+        is_cell_blank[cell.x][cell.y] = False
         point = cell.elem.location
-        _.click(point['x']+8, point['y']+8, duration=0.1)
+        _.click(point['x']+8, point['y']+8, duration=0.05)
+        cell.value = get_value_of_elem(cell.elem)
         return 1
     return 0
-
 
 # flag the cell
 def flag(cell : Cell):
-    if get_value_of_elem(cell.elem) == 'o':
-        cell.value = 'x'
-        is_cell_solved[cell.x][cell.y] == True
-        point = cell.elem.location
-        _.rightClick(point['x']+8, point['y']+8, duration=0.1)
-        return 1
-    return 0
+    cell.value = 'x'
+    is_cell_solved[cell.x][cell.y] = True
+    is_cell_blank[cell.x][cell.y] = False
+    point = cell.elem.location
+    _.rightClick(point['x']+8, point['y']+8, duration=0.05)
+    return 1
 
 
 # flag all of the cells in the given set
@@ -134,12 +135,14 @@ def load_board():
     solved = False
     for column in cells:
         for cell in column:
-            value = get_value_of_elem(cell.elem)
-            cell.value = value
-            if value == 'o':
-                solved = False
-            elif value == 0:
-                is_cell_solved[cell.x][cell.y] = True
+            if cell.value == 'o':
+                value = get_value_of_elem(cell.elem)
+                cell.value = value
+                is_cell_blank[cell.x][cell.y] = (value == 'o')
+                if value == 'o':
+                    solved = False
+                elif value == 0:
+                    is_cell_solved[cell.x][cell.y] = True
 
     return solved
 
