@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
-from pyautogui import click
+from pyautogui import click, rightClick
 from webdriver_manager.driver import OperaDriver
 
 import cProfile
@@ -17,16 +17,14 @@ chrome_options.add_experimental_option(
     "excludeSwitches", ["enable-automation"])
 driver = webdriver.Chrome(
     executable_path=ChromeDriverManager().install(), options=chrome_options)
-driver.get('https://minesweeperonline.com/#{}-200'.format(difficulty))
-driver.fullscreen_window()
-time.sleep(5)
 
 class Cell:
-  def __init__(self, x, y, value, elem):
+  def __init__(self, x, y, value, elem, solved=False):
     self.x = x
     self.y = y
     self.value = value
     self.elem = elem
+    self.solved = solved
 
 if difficulty == 'beginner':
     width = 9
@@ -53,8 +51,14 @@ def get_value_of_elem(elem : WebElement):
     else:
         return int(class_name[-1])
 
+cells = []
+
 def initialize_cells():
-    cells = []
+    # remove existing columns
+    while len(cells) > 0:
+      cells.pop(0)
+
+    # add new columns
     for x in range(width):
         column = []
         for y in range(height):
@@ -62,48 +66,7 @@ def initialize_cells():
             value = get_value_of_elem(elem)
             column.append(Cell(x, y, value, elem))
         cells.append(column)
-    return cells
 
-cells = initialize_cells()
-is_cell_solved = [[False for i in range(height)] for j in range(width)]
-is_cell_blank = [[True for i in range(height)] for j in range(width)]
-    
-
-# reveals the cell
-def reveal(cell : Cell):
-    if cell.value == 'o':
-        is_cell_blank[cell.x][cell.y] = False
-        point = cell.elem.location
-        click(point['x']+8, point['y']+8)
-        cell.value = get_value_of_elem(cell.elem)
-        return 1
-    return 0
-
-# flag the cell
-def flag(cell : Cell):
-    cell.value = 'x'
-    is_cell_solved[cell.x][cell.y] = True
-    is_cell_blank[cell.x][cell.y] = False
-    # point = cell.elem.location
-    # _.rightClick(point['x']+8, point['y']+8)
-    return 1
-
-
-# flag all of the cells in the given set
-def flag_all(cell_set : Iterable[Cell]):
-    total_clicks = 0
-    for cell in cell_set:
-      total_clicks += flag(cell)
-    return total_clicks
-  
-
-# reveal all of the cells in the given set
-def reveal_all(cellSet : Iterable[Cell]):
-    total_clicks = 0
-    for cell in cellSet:
-      total_clicks += reveal(cell)
-    return total_clicks
-  
 
 # returns a set of coordinates of all adjacent cells
 def get_neighbors_of(x, y) -> Iterable[Cell]:
@@ -123,6 +86,73 @@ def get_neighbors_of(x, y) -> Iterable[Cell]:
     return neighbors
   
 
+# returns a set of all the neighbors with the given value of the cell at (x,y)
+def get_neighbors_with_value(x, y, val) -> Iterable[Cell]:
+    neighbors = get_neighbors_of(x, y)
+    neighbors_with_val = set()
+    for cell in neighbors:
+        if cell.value == val:
+            neighbors_with_val.add(cell)
+    
+    return neighbors_with_val
+
+
+# reads and updates the values of cells revealed by a pocket
+def read_pocket(this_cell):
+  this_cell.solved = True
+  # print("pocket at ({}, {})".format(this_cell.x, this_cell.y))
+  for that_cell in get_neighbors_with_value(this_cell.x, this_cell.y, 'o'):
+    that_cell.value = get_value_of_elem(that_cell.elem)
+    if that_cell.value == 0:
+      read_pocket(that_cell)
+
+  return
+
+def click_cell(cell: Cell):
+    point = cell.elem.location
+    click(point['x']+8, point['y']+8)
+
+# reveals the cell
+def reveal(cell : Cell):
+    if cell.value == 'o':
+        click_cell(cell)
+        cell.value = get_value_of_elem(cell.elem)
+        if cell.value == 0:
+          read_pocket(cell)
+        return 1
+    return 0
+
+# flag the cell
+def flag(cell : Cell):
+    cell.value = 'x'
+    cell.solved = True
+    # point = cell.elem.location
+    # rightClick(point['x']+8, point['y']+8)
+    return 1
+
+
+# flag all of the cells in the given set
+def flag_all(cell_set : Iterable[Cell]):
+    total_clicks = 0
+    for cell in cell_set:
+      total_clicks += flag(cell)
+    return total_clicks
+  
+
+# reveal all of the cells in the given set
+def reveal_all(cellSet : Iterable[Cell]):
+    total_clicks = 0
+    for cell in cellSet:
+      total_clicks += reveal(cell)
+    return total_clicks
+
+# reveal all the neighbors of the given cell by using the spacebar shortcut
+# def reveal_all_neighbors_of():
+#     # TODO
+#     return 1
+
+
+
 # converts 2D coordinates to 1D index
 def to_1d(x, y):
     return y * width + x
@@ -136,27 +166,9 @@ def load_board():
     for column in cells:
         for cell in column:
             if cell.value == 'o':
-                value = get_value_of_elem(cell.elem)
-                cell.value = value
-                is_cell_blank[cell.x][cell.y] = (value == 'o')
-                if value == 'o':
-                    solved = False
-                elif value == 0:
-                    is_cell_solved[cell.x][cell.y] = True
+                solved = False
 
     return solved
-
-
-# returns a set of all the neighbors with the given value of the cell at (x,y)
-def get_neighbors_with_value(x, y, val) -> Iterable[Cell]:
-    neighbors = get_neighbors_of(x, y)
-    neighbors_with_val = set()
-    for cell in neighbors:
-        if cell.value == val:
-            neighbors_with_val.add(cell)
-    
-    return neighbors_with_val
-
 
 # returns the number of adjacent mines that are still hidden
 def n_adj(cell : Cell):
@@ -167,6 +179,12 @@ def n_adj(cell : Cell):
 
 # solves the puzzle
 def solve():
+    driver.refresh()
+    driver.get('https://minesweeperonline.com/#{}-200'.format(difficulty))
+    driver.fullscreen_window()
+    time.sleep(5)
+    initialize_cells()
+
     # reveal middle cell
     reveal(cells[math.floor(width / 2)][math.floor(height / 2)])
     load_board()
@@ -174,7 +192,6 @@ def solve():
     solved = False
     stuck = False
     loops = 0
-    solved
 
     while not solved and not stuck and loops < 100:
         print('loop {}'.format(loops))
@@ -184,14 +201,14 @@ def solve():
         for x in range(width):
             for y in range(height):
                 # skip if cell is solved
-                if is_cell_solved[x][y]:
+                if cells[x][y].solved:
                     continue
         
                 val = cells[x][y].value
 
                 if flags_left == 0 and val == 'o':
                     reveal(cells[x][y])
-                    is_cell_solved[x][y] = True
+                    cells[x][y].solved = True
 
                 # skip if blank or flagged or empty
                 if val in [0, 'x', 'o']:
@@ -210,14 +227,14 @@ def solve():
                 if len(blank) + len(flagged) == n and len(blank) > 0:
                     # print('flagging all neighbors of ({}, {})'.format(x, y))
                     num_clicks += flag_all(blank)
-                    is_cell_solved[x][y] = True
+                    cells[x][y].solved = True
                     continue
 
                 # reveal all neighbors
                 if len(flagged) == n:
                     # print('revealing all neighbors of ({}, {})'.format(x, y))
                     num_clicks += reveal_all(blank)
-                    is_cell_solved[x][y] = True
+                    cells[x][y].solved = True
                     continue
 
                 for cell in neighbors:
@@ -284,4 +301,16 @@ def solve():
 
     print('{} total loops'.format(loops))
 
-cProfile.run("solve()")
+def solve_forever():
+  cProfile.run("solve()")
+  while True:
+    response = input("Game over. Continue? (y/n)\n")
+    if response == 'y':
+        cProfile.run("solve()")
+    elif response == 'n':
+        driver.quit()
+        break
+    else:
+        continue
+
+solve_forever()
