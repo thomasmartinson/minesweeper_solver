@@ -4,12 +4,14 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
+import pyautogui
 from pyautogui import click, rightClick
 from webdriver_manager.driver import OperaDriver
 
 import cProfile
 
 difficulty = "expert"
+pyautogui.PAUSE = 0
 
 # initialize driver
 chrome_options = Options()
@@ -48,6 +50,8 @@ def get_value_of_elem(elem : WebElement):
         return 'o'
     elif 'bombflagged' in class_name:
         return 'x'
+    elif 'bombdeath' in class_name:
+        raise Exception('It\'s a boy!')
     else:
         return int(class_name[-1])
 
@@ -63,7 +67,7 @@ def initialize_cells():
         column = []
         for y in range(height):
             elem = driver.find_element_by_id('{}_{}'.format(y+1, x+1))
-            value = get_value_of_elem(elem)
+            value = 'o'
             column.append(Cell(x, y, value, elem))
         cells.append(column)
 
@@ -110,7 +114,7 @@ def read_pocket(this_cell):
 
 def click_cell(cell: Cell):
     point = cell.elem.location
-    click(point['x']+8, point['y']+8)
+    pyautogui.click(point['x']+8, point['y']+8)
 
 # reveals the cell
 def reveal(cell : Cell):
@@ -182,7 +186,9 @@ def solve():
     driver.refresh()
     driver.get('https://minesweeperonline.com/#{}-200'.format(difficulty))
     driver.fullscreen_window()
-    time.sleep(5)
+    time.sleep(3)
+    pyautogui.press('f2')
+    time.sleep(2)
     initialize_cells()
 
     # reveal middle cell
@@ -290,6 +296,24 @@ def solve():
         stuck = num_clicks == 0
         solved = load_board()
         loops += 1
+
+        if stuck:
+          # TODO
+          print('guessing')
+          try:
+              for column in cells:
+                  for cell in column:
+                    if cell.value == 'o':
+                        reveal(cell)
+                        stuck = False
+                        break
+                  else:
+                      continue
+                  break
+          except Exception as err:
+              pass
+
+          
 
 
     # report outcome
