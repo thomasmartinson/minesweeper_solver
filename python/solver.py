@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
-import pyautogui as _
+from pyautogui import click
 from webdriver_manager.driver import OperaDriver
 
 import cProfile
@@ -71,10 +71,10 @@ is_cell_blank = [[True for i in range(height)] for j in range(width)]
 
 # reveals the cell
 def reveal(cell : Cell):
-    if is_cell_blank[cell.x][cell.y]:
+    if cell.value == 'o':
         is_cell_blank[cell.x][cell.y] = False
         point = cell.elem.location
-        _.click(point['x']+8, point['y']+8, duration=0.05)
+        click(point['x']+8, point['y']+8)
         cell.value = get_value_of_elem(cell.elem)
         return 1
     return 0
@@ -84,8 +84,8 @@ def flag(cell : Cell):
     cell.value = 'x'
     is_cell_solved[cell.x][cell.y] = True
     is_cell_blank[cell.x][cell.y] = False
-    point = cell.elem.location
-    _.rightClick(point['x']+8, point['y']+8, duration=0.05)
+    # point = cell.elem.location
+    # _.rightClick(point['x']+8, point['y']+8)
     return 1
 
 
