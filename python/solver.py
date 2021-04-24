@@ -5,13 +5,13 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 from webdriver_manager.chrome import ChromeDriverManager
 import pyautogui
-from pyautogui import click, rightClick
+from pyautogui import click, moveTo, press, rightClick
 from webdriver_manager.driver import OperaDriver
 
 import cProfile
 
 difficulty = "expert"
-pyautogui.PAUSE = 0
+pyautogui.PAUSE = 0.2
 
 # initialize driver
 chrome_options = Options()
@@ -26,7 +26,10 @@ class Cell:
     self.y = y
     self.value = value
     self.elem = elem
-    self.point = elem.location
+    self.point = {
+      'x' : elem.location['x'] + 8,
+      'y' : elem.location['y'] + 8
+    }
     self.solved = solved
 
 if difficulty == 'beginner':
@@ -43,6 +46,11 @@ else: # expert
     mines = 99 
 
 flags_left = mines
+
+# move cursor to cell
+def move_to_cell_and_press(cell: Cell, key: str):
+    moveTo(cell.point['x'], cell.point['y'])
+    press(key)
 
 #
 def get_value_of_elem(elem : WebElement):
@@ -107,6 +115,9 @@ def read_pocket(this_cell):
   this_cell.solved = True
   # print("pocket at ({}, {})".format(this_cell.x, this_cell.y))
   for that_cell in get_neighbors_with_value(this_cell.x, this_cell.y, 'o'):
+    # prevent duplication of efforts
+    if that_cell.value != 'o':
+      continue
     that_cell.value = get_value_of_elem(that_cell.elem)
     if that_cell.value == 0:
       read_pocket(that_cell)
@@ -115,7 +126,8 @@ def read_pocket(this_cell):
 
 def click_cell(cell: Cell):
     point = cell.point
-    pyautogui.click(point['x']+8, point['y']+8)
+    click(point['x'], point['y'])
+    # cell.elem.click()
 
 # reveals the cell
 def reveal(cell : Cell):
@@ -131,10 +143,9 @@ def reveal(cell : Cell):
 def flag(cell : Cell):
     cell.value = 'x'
     cell.solved = True
-    # point = cell.elem.location
-    # rightClick(point['x']+8, point['y']+8)
+    # point = cell.point
+    # rightClick(point['x'], point['y'])
     return 1
-
 
 # flag all of the cells in the given set
 def flag_all(cell_set : Iterable[Cell]):
@@ -142,7 +153,6 @@ def flag_all(cell_set : Iterable[Cell]):
     for cell in cell_set:
       total_clicks += flag(cell)
     return total_clicks
-  
 
 # reveal all of the cells in the given set
 def reveal_all(cellSet : Iterable[Cell]):
@@ -152,16 +162,11 @@ def reveal_all(cellSet : Iterable[Cell]):
     return total_clicks
 
 # reveal all the neighbors of the given cell by using the spacebar shortcut
-# def reveal_all_neighbors_of():
-#     # TODO
-#     return 1
-
-
-
-# converts 2D coordinates to 1D index
-def to_1d(x, y):
-    return y * width + x
-
+def reveal_all_neighbors_of(cell: Cell):
+    # TODO
+    move_to_cell_and_press(cell, 'space')
+    read_pocket(cell)
+    return 1
 
 # updates the board array with new values based on the page document
 # returns True if no cells are blank, otherwise returns False
@@ -192,8 +197,9 @@ def solve():
     time.sleep(2)
     initialize_cells()
 
-    # reveal middle cell
-    reveal(cells[math.floor(width / 2)][math.floor(height / 2)])
+    # reveal a cell
+    reveal(cells[math.floor(width/2)][math.floor(height/2)])
+    # reveal(cells[1][1])
     load_board()
 
     solved = False
@@ -207,6 +213,16 @@ def solve():
         # iterate over each cell
         for x in range(width):
             for y in range(height):
+        # for i in range(width + height - 1):
+        #     x = i + 1
+        #     y = 0
+        #     while x > 0 and y < 15:
+        #         x -= 1
+        #         y += 1
+        #         if x >= width:
+        #           continue
+              # print('({},{})'.format(x, y))
+
                 # skip if cell is solved
                 if cells[x][y].solved:
                     continue
@@ -240,7 +256,9 @@ def solve():
                 # reveal all neighbors
                 if len(flagged) == n:
                     # print('revealing all neighbors of ({}, {})'.format(x, y))
-                    num_clicks += reveal_all(blank)
+                    if len(blank) > 0:
+                    #   num_clicks += reveal_all_neighbors_of(cells[x][y])
+                        num_clicks += reveal_all(blank)
                     cells[x][y].solved = True
                     continue
 
@@ -260,7 +278,7 @@ def solve():
                         # if n_adj of the neighbor = n_adj of current cell...
                         if n_adj(cells[x][y]) == n_adj(cell):
                             # reveal all other neighbors
-                            # print('reveal all neighbors of ({}, {})'.format(x, y))
+                            # print('reveal all other neighbors of ({}, {})'.format(x, y))
                             num_clicks += reveal_all(
                                 neighbors.difference(blankNeighborsOfNeighbor)
                             )
@@ -331,7 +349,8 @@ def solve_forever():
   while True:
     response = input("Game over. Continue? (y/n)\n")
     if response == 'y':
-        cProfile.run("solve()")
+        # cProfile.run("solve()")
+        solve()
     elif response == 'n':
         driver.quit()
         break
